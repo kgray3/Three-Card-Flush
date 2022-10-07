@@ -527,8 +527,8 @@
             ( format t "--> The game is a draw. The deck is dead.~%")
         )
         ( ( and ( not ( equal ( first *game-state* ) 'bust ) )
-        ( equal ( second *game-state* ) 'bust )
-        )
+            ( equal ( second *game-state* ) 'bust )
+            )
             ( format t "--> Player 1 wins with ~A~%" ( first *game-state* ) )
         )
         ( ( and ( equal ( first *game-state* ) 'bust )
@@ -558,19 +558,75 @@
 
 ( defun card-greater ( c1 c2 )
     ( setf rank-order '( 2 3 4 5 6 7 8 9 10 JACK QUEEN KING ACE ) )
-    ( setf p1 ( position c1 rank-order ) )
-    ( setf p2 ( position c2 rank-order ) )
+    ( setf p1 ( position ( car c1 ) rank-order ) )
+    ( setf p2 ( position ( car c2 ) rank-order ) )
     
     ( > p1 p2 )
 )
 
 ( defun demo--report-the-result ()
-    ( format t ">>> Testing: analyze-hand~%" )
-    ( setf hand '( ( 5 . spade) ( 3 . diamond ) ( 4 . spade ) ) )
-    ( format t "~A is a ~A~%" hand ( analyze-hand hand ) )
-    ( setf hand '( ( 5 . club) ( 9 . club ) ( 4 . club ) ) )
-    ( format t "~A is a ~A~%" hand ( analyze-hand hand ) )
-    ( setf hand '( ( queen . heart ) ( ace . heart ) ( king . heart ) ) )
-    ( format t "~A is a ~A~%" hand ( analyze-hand hand ) )
+    ; Test Case: bust - bust
+    ( format t ">>> Testing: report-the-result~%" )
+    ( setf *hand1* '( ( 6 . spade) ( JACK . diamond ) ( 2 . heart ) ) )
+    ( setf *hand2* '( ( 3 . spade ) ( QUEEN . diamond) ( 2 spade ) ) )
+    ( format t "*hand1* = ~A~%" ( write-to-string *hand1* ) )
+    ( format t "*hand2* = ~A~%" *hand2* )
+    (analyze-game)
+    ( format t "*game-state* = ~A~%" *game-state* )
+    (report-the-result)
+    nil
+    ; Test Case: flush - bust
+    ( setf *hand1* '( ( 7 . spade) ( QUEEN . spade ) ( 3 . spade ) ) )
+    ( setf *hand2* '( ( 9 . spade ) ( JACK . diamond) ( 8 spade ) ) )
+    ( format t "*hand1* = ~A~%" ( write-to-string *hand1* ) )
+    ( format t "*hand2* = ~A~%" *hand2* )
+    (analyze-game)
+    ( format t "*game-state* = ~A~%" *game-state* )
+    (report-the-result)
+    nil
+    ; Test Case: bust - flush
+    ( setf *hand1* '( ( 7 . diamond) ( QUEEN . spade ) ( 3 . heart ) ) )
+    ( setf *hand2* '( ( 9 . spade ) ( JACK . spade) ( 8 spade ) ) )
+    ( format t "*hand1* = ~A~%" ( write-to-string *hand1* ) )
+    ( format t "*hand2* = ~A~%" *hand2* )
+    (analyze-game)
+    ( format t "*game-state* = ~A~%" *game-state* )
+    (report-the-result)
+    nil
+    ; Test Case: straight flush - flush
+    ( setf *hand1* '( ( 3 . diamond) ( 4 . diamond ) ( 5 . diamond ) ) )
+    ( setf *hand2* '( ( 8 . heart ) ( QUEEN . heart) ( JACK heart ) ) )
+    ( format t "*hand1* = ~A~%" ( write-to-string *hand1* ) )
+    ( format t "*hand2* = ~A~%" *hand2* )
+    (analyze-game)
+    ( format t "*game-state* = ~A~%" *game-state* )
+    (report-the-result)
+    nil
+    ; Test Case: flush - straight flush
+    ( setf *hand1* '( ( 9 . diamond) ( 10 . diamond ) ( ACE . diamond ) ) )
+    ( setf *hand2* '( ( JACK . spade ) ( QUEEN . spade) ( 10 spade ) ) )
+    ( format t "*hand1* = ~A~%" ( write-to-string *hand1* ) )
+    ( format t "*hand2* = ~A~%" *hand2* )
+    (analyze-game)
+    ( format t "*game-state* = ~A~%" *game-state* )
+    (report-the-result)
+    nil
+    ; Test Case: flush high - flush
+    ( setf *hand1* '( ( 2 . club) ( 5 . club ) ( KING . club ) ) )
+    ( setf *hand2* '( ( 10 . spade ) ( 6 . spade) ( QUEEN spade ) ) )
+    ( format t "*hand1* = ~A~%" ( write-to-string *hand1* ) )
+    ( format t "*hand2* = ~A~%" *hand2* )
+    (analyze-game)
+    ( format t "*game-state* = ~A~%" *game-state* )
+    (report-the-result)
+    nil
+    ; Test Case flush - flush high
+    ( setf *hand1* '( ( 3 . diamond) ( JACK . diamond ) ( 9 . diamond ) ) )
+    ( setf *hand2* '( ( JACK . club ) ( 2 . club) ( ACE club ) ) )
+    ( format t "*hand1* = ~A~%" ( write-to-string *hand1* ) )
+    ( format t "*hand2* = ~A~%" *hand2* )
+    (analyze-game)
+    ( format t "*game-state* = ~A~%" *game-state* )
+    (report-the-result)
     nil
 )

@@ -112,10 +112,19 @@
 )
 
 ; Function: randomly-discard-cards
-; Function that discards one card from hand1 and one card from hand2 
+; Function that discards one card from hand1 and one card from hand2
 ( defun randomly-discard-cards ()
     ( randomly-discard-card-from-hand1 )
     ( randomly-discard-card-from-hand2 )
+    nil
+)
+
+; Function randomly-heuristically-discard-cards
+; Function that randomly discards a card from hand1 and
+; heuristically discards a card from hand2
+( defun randomly-heuristically-discard-cards ()
+    ( randomly-discard-card-from-hand1 )
+    ( heuristic-discard-card-from-hand2 )
     nil
 )
 
@@ -132,6 +141,69 @@
     ( setf random-selection (nth (random (length '( LEFT CENTER RIGHT ) ) ) '( LEFT CENTER RIGHT ) ) )
     ( setf *hand2* ( replace-lcr random-selection nil *hand2* ) )
 )
+
+; Function: heuristic-discard-card-from-hand2
+; Function that heuristically discards a card from hand2 and replaces it with nil
+; The heuristics:
+    ; 1. If 2/3 of the suits are the same, discard the different suit
+    ; 2. If no suits match, discard the card of lowest rank
+( defun heuristic-discard-card-from-hand2 ()
+    ( setf suits ( mapcar #'cdr *hand2* ) )
+    ( setf hand (copy-tree *hand2*) )
+    (cond
+        ; Check if two suits match and discard different suit
+        ((equal ( first suits ) ( second suits ))
+            ( setf *hand2* ( replace-lcr 'RIGHT nil *hand2* ) )
+        )
+        ((equal ( first suits ) ( third suits ))
+            ( setf *hand2* ( replace-lcr 'CENTER nil *hand2* ) )
+        )
+        ((equal ( second suits ) ( third suits )) 
+            ( setf *hand2* ( replace-lcr 'LEFT nil *hand2* ) )
+        )
+        ; If no suits match, discard the smallest card
+        (t
+
+            ( setf min-rank-list ( sort hand #'minimum-p ) )
+            ( setf discard-card  ( car min-rank-list ) )
+            (cond
+                (( equal ( first *hand2* ) discard-card )
+                    ( setf *hand2* ( replace-lcr 'LEFT nil *hand2* ) )
+                )
+                (( equal ( second *hand2* ) discard-card )
+                    ( setf *hand2* ( replace-lcr 'CENTER nil *hand2* ) )
+                )
+                (( equal ( third *hand2* ) discard-card )
+                    ( setf *hand2* ( replace-lcr 'RIGHT nil *hand2* ) )
+                )
+            )
+
+        )
+    )
+
+)
+
+; Function: minimum-p
+; Returns true if a card's rank is less than the other card's rank
+( defun minimum-p ( c1 c2 )
+    ( setf rank-order '( 2 3 4 5 6 7 8 9 10 JACK QUEEN KING ACE ) )
+    ( < ( position ( car c1 ) rank-order ) ( position ( car c2 )  rank-order ) )
+)
+
+
+; Function: demo--randomly-heuristically-discard-cards
+; Tests randomly-heuristically-discard-cards function
+( defun demo--randomly-heuristically-discard-cards ()
+    ( format t ">>> Testing: randomly-discard-cards~%" )
+    ( deal-hands )
+    ( format t "--- *hand1* = ~A~%" *hand1* )
+    ( format t "--- *hand2* = ~A~%" *hand2* )
+    ( randomly-heuristically-discard-cards )
+    ( format t "--- *hand1* = ~A~%" *hand1* )
+    ( format t "--- *hand2* = ~A~%" *hand2* )
+    nil
+)
+
 
 ; Function: demo--randomly-discard-cards
 ; Function that tests randomly-discard-cards ()
@@ -237,7 +309,7 @@
 ; Function: players-each-take-a-turn
 ; Randomly discard a card from *hand1* and *hand2* and replace those cards
 ( defun players-each-take-a-turn ()
-    ( randomly-discard-cards )
+    ( randomly-heuristically-discard-cards )
     ( replace-cards )
     nil
 )
@@ -495,11 +567,14 @@
     nil
 )
 
-
+; Function: analyze-game
+; Function that sets the *game-state*
 ( defun analyze-game ()
     (setf *game-state* (list (analyze-hand *hand1* ) (analyze-hand *hand2*) ) )
 )
 
+; Function: demo--analyze-game
+; Function that tests the analyze-game function
 ( defun demo--analyze-game ()
     ( format t ">>> Testing: analyze-game~%" )
     ; a couple of busts
@@ -521,41 +596,65 @@
     nil
 )
 
+; Function: report-the-result
+; Function that checks *game-state* for a one of 7 states
+    ; 1. bust / bust
+    ; 2. flush / bust
+    ; 3. bust / flush
+    ; 4. straight flush / flush
+    ; 5. flush / straight flush
+    ; 6. high flush / flush
+    ; 7. flush / high flush
+; this is used to determine the winner (or lack thereof) of three card flush
 ( defun report-the-result ()
     ( cond
         ( ( equal *game-state* '( bust bust ) )
+            ( increment '*draw-count* )
             ( format t "--> The game is a draw. The deck is dead.~%")
         )
         ( ( and ( not ( equal ( first *game-state* ) 'bust ) )
             ( equal ( second *game-state* ) 'bust )
             )
+            ( increment '*win1-count* )
             ( format t "--> Player 1 wins with ~A~%" ( first *game-state* ) )
         )
         ( ( and ( equal ( first *game-state* ) 'bust )
         ( not ( equal ( second *game-state* ) 'bust ) )
         )
+            ( increment '*win2-count* )
             ( format t "--> Player 2 wins with ~A~%" ( second *game-state* ) )
         )
         ( ( and ( straight-p *hand1* ) ( not ( straight-p *hand2* ) ) )
             ( format t "!!! Both players found their way to a flush~%" )
+            ( increment '*win1-count* )
+            ( increment '*f1f2-count* )
             ( format t "--> Player 1 wins with ~A~%" ( first *game-state* ) )
         )
         ( ( and ( not ( straight-p *hand1* ) ) ( straight-p *hand2* ) )
             ( format t "!!! Both players found their way to a flush~%" )
+            ( increment '*win2-count* )
+            ( increment '*f1f2-count* )
             ( format t "--> Player 2 wins with ~A~%" ( second *game-state* ) )
         )
         ( ( card-greater ( high-card *hand1* ) ( high-card *hand2* ) )
             ( format t "!!! Both players found their way to a flush~%" )
+            ( increment '*win1-count* )
+            ( increment '*f1f2-count* )
             ( format t "--> Player 1 wins with ~A~%" ( first *game-state* ) )
         )
         ( ( card-greater ( high-card *hand2* ) ( high-card *hand1* ) )
             ( format t "!!! Both players found their way to a flush~%" )
+            ( increment '*win2-count* )
+            ( increment '*f1f2-count* )
             ( format t "--> Player 2 wins with ~A~%" ( second *game-state* ) )
         )
     )
     nil
 )
 
+; Function: card-greater
+; Function that checks if a card's rank is greater than another
+; If the first card is greater, return true; else false
 ( defun card-greater ( c1 c2 )
     ( setf rank-order '( 2 3 4 5 6 7 8 9 10 JACK QUEEN KING ACE ) )
     ( setf p1 ( position ( car c1 ) rank-order ) )
@@ -564,65 +663,73 @@
     ( > p1 p2 )
 )
 
+; Function: demo--report-the-result
+; Tests report-the-result function
 ( defun demo--report-the-result ()
     ; Test Case: bust - bust
-    ( format t ">>> Testing: report-the-result~%" )
+    ( format t ">>> Testing: report-the-result - bust / bust~%" )
     ( setf *hand1* '( ( 6 . spade) ( JACK . diamond ) ( 2 . heart ) ) )
-    ( setf *hand2* '( ( 3 . spade ) ( QUEEN . diamond) ( 2 spade ) ) )
+    ( setf *hand2* '( ( 3 . spade ) ( QUEEN . diamond) ( 2 . spade ) ) )
     ( format t "*hand1* = ~A~%" ( write-to-string *hand1* ) )
     ( format t "*hand2* = ~A~%" *hand2* )
     (analyze-game)
     ( format t "*game-state* = ~A~%" *game-state* )
     (report-the-result)
-    nil
+    ( format t "-----------------------------------")
     ; Test Case: flush - bust
+    ( format t ">>> Testing: report-the-result - flush / bust~%" )
     ( setf *hand1* '( ( 7 . spade) ( QUEEN . spade ) ( 3 . spade ) ) )
-    ( setf *hand2* '( ( 9 . spade ) ( JACK . diamond) ( 8 spade ) ) )
+    ( setf *hand2* '( ( 9 . spade ) ( JACK . diamond) ( 8 . spade ) ) )
     ( format t "*hand1* = ~A~%" ( write-to-string *hand1* ) )
     ( format t "*hand2* = ~A~%" *hand2* )
     (analyze-game)
     ( format t "*game-state* = ~A~%" *game-state* )
     (report-the-result)
-    nil
+    ( format t "-----------------------------------")
     ; Test Case: bust - flush
+    ( format t ">>> Testing: report-the-result - bust / flush~%" )
     ( setf *hand1* '( ( 7 . diamond) ( QUEEN . spade ) ( 3 . heart ) ) )
-    ( setf *hand2* '( ( 9 . spade ) ( JACK . spade) ( 8 spade ) ) )
+    ( setf *hand2* '( ( 9 . spade ) ( JACK . spade) ( 8 . spade ) ) )
     ( format t "*hand1* = ~A~%" ( write-to-string *hand1* ) )
     ( format t "*hand2* = ~A~%" *hand2* )
     (analyze-game)
     ( format t "*game-state* = ~A~%" *game-state* )
     (report-the-result)
-    nil
+    ( format t "-----------------------------------")
     ; Test Case: straight flush - flush
+    ( format t ">>> Testing: report-the-result - straight flush / flush~%" )
     ( setf *hand1* '( ( 3 . diamond) ( 4 . diamond ) ( 5 . diamond ) ) )
-    ( setf *hand2* '( ( 8 . heart ) ( QUEEN . heart) ( JACK heart ) ) )
+    ( setf *hand2* '( ( 8 . heart ) ( QUEEN . heart) ( JACK . heart ) ) )
     ( format t "*hand1* = ~A~%" ( write-to-string *hand1* ) )
     ( format t "*hand2* = ~A~%" *hand2* )
     (analyze-game)
     ( format t "*game-state* = ~A~%" *game-state* )
     (report-the-result)
-    nil
+    ( format t "-----------------------------------")
     ; Test Case: flush - straight flush
+    ( format t ">>> Testing: report-the-result - flush / straight flush~%" )
     ( setf *hand1* '( ( 9 . diamond) ( 10 . diamond ) ( ACE . diamond ) ) )
-    ( setf *hand2* '( ( JACK . spade ) ( QUEEN . spade) ( 10 spade ) ) )
+    ( setf *hand2* '( ( JACK . spade ) ( QUEEN . spade) ( 10 . spade ) ) )
     ( format t "*hand1* = ~A~%" ( write-to-string *hand1* ) )
     ( format t "*hand2* = ~A~%" *hand2* )
     (analyze-game)
     ( format t "*game-state* = ~A~%" *game-state* )
     (report-the-result)
-    nil
+    ( format t "-----------------------------------")
     ; Test Case: flush high - flush
+    ( format t ">>> Testing: report-the-result - flush high / flush~%" )
     ( setf *hand1* '( ( 2 . club) ( 5 . club ) ( KING . club ) ) )
-    ( setf *hand2* '( ( 10 . spade ) ( 6 . spade) ( QUEEN spade ) ) )
+    ( setf *hand2* '( ( 10 . spade ) ( 6 . spade) ( QUEEN . spade ) ) )
     ( format t "*hand1* = ~A~%" ( write-to-string *hand1* ) )
     ( format t "*hand2* = ~A~%" *hand2* )
     (analyze-game)
     ( format t "*game-state* = ~A~%" *game-state* )
     (report-the-result)
-    nil
+    ( format t "-----------------------------------")
     ; Test Case flush - flush high
+    ( format t ">>> Testing: report-the-result - flush / flush high~%" )
     ( setf *hand1* '( ( 3 . diamond) ( JACK . diamond ) ( 9 . diamond ) ) )
-    ( setf *hand2* '( ( JACK . club ) ( 2 . club) ( ACE club ) ) )
+    ( setf *hand2* '( ( JACK . club ) ( 2 . club) ( ACE . club ) ) )
     ( format t "*hand1* = ~A~%" ( write-to-string *hand1* ) )
     ( format t "*hand2* = ~A~%" *hand2* )
     (analyze-game)
@@ -630,3 +737,125 @@
     (report-the-result)
     nil
 )
+
+; Function: hand-rep 
+; Function that converts a hand of cards to an abbreviated version
+( defun hand-rep ( hand )
+    ( setf result ( mapcar #'abbreviate-r hand ) )
+    result
+)
+
+; Function: abbreviate-r
+; Helper function of hand-rep that converts a card to its abbreviated version
+( defun abbreviate-r ( card )
+    ( setf external-ranks '( 2 3 4 5 6 7 8 9 X J Q K A) )
+    ( setf internal-ranks '( 2 3 4 5 6 7 8 9 10 JACK QUEEN KING ACE ) )
+    ( setf rank-assoc ( pairlis internal-ranks external-ranks ) )
+    
+    ( setf external-suits '( H D C S ) )
+    ( setf internal-suits '( HEART DIAMOND CLUB SPADE ) )
+    ( setf suit-assoc ( pairlis internal-suits external-suits) )
+    
+    ( setf new-rank ( cdr ( assoc ( car card ) rank-assoc ) ) )
+    ( setf suit ( cdr ( assoc ( cdr card ) suit-assoc ) ) )
+    ( cons new-rank suit )
+        
+    
+)
+
+; Function: demo--hand-rep
+; Tests hand-rep function
+( defun demo--hand-rep ( &aux hand )
+    ( establish-shuffled-deck )
+    ( setf internal ( list ( pop *deck* ) ( pop *deck* ) ( pop *deck* ) ) )
+    ( setf external ( hand-rep internal ) )
+    ( format t "~A --> ~A~%" internal external )
+    nil
+)
+
+; Function: play-game
+; Function that plays a game of three card flush
+( defun play-game ()
+    ( increment '*game-count* )
+    ( deal-hands )
+    ( make-moves )
+    ( report-the-result )
+)
+
+; Function: make-moves
+; Players take turns, hands get analyzed until a win or draw occurs
+( defun make-moves ()
+    ( increment '*turn-count* )
+    ( format t "~A      ~A~%" ( hand-rep *hand1* ) ( hand-rep *hand2* ) )
+    ( if ( not ( game-over-p ) )
+        ( let ()
+            ( players-each-take-a-turn )
+            ( make-moves )
+        )
+    )
+    nil
+)
+
+; Function: game-over-p
+; Function that checks if a win or null deck has occurred
+( defun game-over-p ()
+    ( analyze-game )
+    ( or 
+        ( not ( equal *game-state* '( bust bust ) ) )
+        ( null *deck* )
+    )
+)
+
+; Function: demo--play-game
+; Tests play-game function
+( defun demo--play-game ()
+    ( format t ">>> Testing: play-game~%" )
+    ( play-game )
+)
+
+; Counter initialization -- initialize once so the game can be played regardless of
+; whether or not statistics are being computed
+
+( defun init-counters ()
+    ( setf *win1-count* 0 )
+    ( setf *win2-count* 0 )
+    ( setf *draw-count* 0 )
+    ( setf *turn-count* 0 )
+    ( setf *f1f2-count* 0 )
+    ( setf *game-count* 0 )
+    nil
+)
+
+( init-counters )
+
+; Flexible counter incrementation
+
+( defun increment (name)
+    ( set name ( + ( eval name ) 1 ) )
+    nil
+)
+
+; The main statistics computation program
+
+( defun compute-statistics ( n )
+    ( init-counters )
+    ( play-game-n-times n )
+    ( format t "*game-count* = ~A~%" *game-count* )
+    ( format t "*turn-count* = ~A~%" *turn-count* )
+    ( format t "*win1-count* = ~A~%" *win1-count* )
+    ( format t "*win2-count* = ~A~%" *win2-count* )
+    ( format t "*draw-count* = ~A~%" *draw-count* )
+    ( format t "*f1f2-count* = ~A~%" *f1f2-count* )
+)
+
+; Program to play the game n times
+
+( defun play-game-n-times ( n )
+    (cond 
+        ( ( > n 0 )
+            ( play-game )
+            ( play-game-n-times ( - n 1 ) )
+        )
+    )
+)
+
